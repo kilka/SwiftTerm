@@ -167,6 +167,56 @@ extension TerminalView {
     {
         return terminal
     }
+
+    /// Makes this view display `newTerminal` in place of its current emulator.
+    ///
+    /// Use it to swap in a terminal whose state was built elsewhere, for example
+    /// a long history parsed off the main thread into a `Terminal` created with
+    /// a headless `TerminalDelegate`, without feeding those bytes to the view.
+    ///
+    /// - The view becomes `newTerminal`'s delegate: from now on its replies to
+    ///   terminal queries go through `TerminalViewDelegate.send`, and the
+    ///   previous terminal is detached (its delegate is cleared).
+    /// - The terminal is adopted as it is: its buffers, scrollback, modes,
+    ///   cursor and viewport position are kept, and it is not resized. Build it
+    ///   at this view's `cols`/`rows` (`getTerminal().getDims()`) to fill the view.
+    /// - The view's presentation is carried over: the ANSI palette installed
+    ///   with `installColors` and the current foreground and background colors.
+    ///   The caret colors stay the view's.
+    /// - The selection is cleared, the search and accessibility state is
+    ///   rebuilt for the new terminal, and the whole screen is redrawn.
+    ///
+    /// Call it on the main thread, outside a `feed` call.
+    public func adoptTerminal (_ newTerminal: Terminal)
+    {
+        guard let old = terminal, newTerminal !== old else { return }
+        // Configure while the incoming terminal still reports to its own
+        // delegate, so these assignments do not echo back into this view.
+        newTerminal.foregroundColor = old.foregroundColor
+        newTerminal.backgroundColor = old.backgroundColor
+        newTerminal.installPalette(colors: old.installedColors)
+        old.tdel = nil
+        newTerminal.tdel = self
+        terminal = newTerminal
+
+        selection?.active = false
+        selection = SelectionService(terminal: newTerminal)
+        search = SearchService(terminal: newTerminal)
+        accessibility.invalidate()
+        resetCaches()
+
+        caretView?.style = newTerminal.options.cursorStyle
+        updateCaretView()
+        mouseModeChanged(source: newTerminal)
+        updateScroller()
+        updateCursorPosition()
+        colorsChanged()
+        #if os(macOS)
+        needsDisplay = true
+        #else
+        setNeedsDisplay(bounds)
+        #endif
+    }
     
     /// This function computes the new columns and rows for the terminal when a pixel-size changes
     /// Returns true if this changed the number of columns/rows, false otherwise
