@@ -326,6 +326,10 @@ open class Terminal {
     public private(set) var buffer: Buffer
 
     private let synchronizedOutputTimeoutSeconds: TimeInterval = 1.0
+    /// When false, synchronized output (mode 2026) is ignored: no display snapshot and no
+    /// timeout on the main queue. For a terminal parsed off the main thread with no view, to
+    /// be adopted by one later (``TerminalView/adoptTerminal(_:)``); turn it back on before.
+    public var synchronizedOutputEnabled: Bool = true
     private var synchronizedOutputActive: Bool = false
     private var synchronizedOutputBuffer: Buffer?
     private var synchronizedOutputBufferIsAlternate: Bool = false
@@ -5010,7 +5014,10 @@ open class Terminal {
      */
     public func garbageCollectPayload() {
         // stop right away if there is nothing to collect
-        if TinyAtom.lastCollected == TinyAtom.lastUsed {
+        TinyAtom.lock.lock ()
+        let (lastCollected, lastUsed) = (TinyAtom.lastCollected, TinyAtom.lastUsed)
+        TinyAtom.lock.unlock ()
+        if lastCollected == lastUsed {
             return
         }
         
@@ -5032,6 +5039,9 @@ open class Terminal {
         
         // since we create atoms in order we expect them to run out of use
         // in order as well and stop with first atom that is still in use
+        TinyAtom.lock.lock ()
+        defer { TinyAtom.lock.unlock () }
+        guard TinyAtom.lastCollected < TinyAtom.lastUsed else { return }
         for code in UInt16(TinyAtom.lastCollected + 1)...UInt16(TinyAtom.lastUsed) {
             if used.contains(code) {
                 // code still in use
@@ -5039,7 +5049,7 @@ open class Terminal {
             }
             
             TinyAtom.lastCollected = Int(code)
-            TinyAtom.release(code: code)
+            TinyAtom.map.removeValue(forKey: code)
         }
     }
     
@@ -5457,6 +5467,9 @@ open class Terminal {
 
     private func beginSynchronizedOutput ()
     {
+        guard synchronizedOutputEnabled else {
+            return
+        }
         let wasActive = synchronizedOutputActive
         if !synchronizedOutputActive {
             synchronizedOutputActive = true

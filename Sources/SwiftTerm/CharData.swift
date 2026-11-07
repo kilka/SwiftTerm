@@ -188,11 +188,16 @@ public struct Attribute: Equatable, Hashable {
 ///
 /// This is kept to 16 bits for now, so that we keep the CharData to less than 15 bytes
 /// it could in theory be changed to be 24 bits without much trouble
+///
+/// The table is process-wide and shared by every `Terminal`, so it is guarded by `lock`:
+/// terminals may be fed on different threads (for example one built off the main thread
+/// and later adopted by a view).
 public struct TinyAtom {
     var code: UInt16
     static var map: [UInt16:Any] = [:]
     static var lastUsed: Int = 0
     static var lastCollected: Int = 0
+    static let lock = NSLock ()
     static let empty = TinyAtom (code: 0)
    
     private init(code: UInt16)
@@ -202,6 +207,8 @@ public struct TinyAtom {
     
     /// Returns the TinyAtom associated with the specified url, or nil if we ran out of space
     public static func lookup (value: Any) -> TinyAtom? {
+        lock.lock ()
+        defer { lock.unlock () }
         let next = lastUsed + 1
         if next < UInt16.max {
             map [UInt16 (next)] = value
@@ -212,6 +219,8 @@ public struct TinyAtom {
     }
     
     public static func release(code: UInt16) {
+        lock.lock ()
+        defer { lock.unlock () }
         map.removeValue(forKey: code)
     }
     
@@ -221,6 +230,8 @@ public struct TinyAtom {
             if code == 0 {
                 return nil
             }
+            TinyAtom.lock.lock ()
+            defer { TinyAtom.lock.unlock () }
             return TinyAtom.map [code]
         }
     }
