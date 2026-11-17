@@ -739,6 +739,21 @@ open class Terminal {
         return buffer.lines [row + buffer.yDisp]
     }
 
+    /// Returns the line a view draws at visible row `row` (0 is the top). It is `getLine(row:)`'s line,
+    /// except during synchronized output (mode 2026), when a view keeps drawing the screen as it was when
+    /// the update began while the parser writes the next one.
+    public func getDisplayedLine (row: Int) -> BufferLine? {
+        let display = displayBuffer
+        if row < 0 || row >= rows || row + display.yDisp >= display.lines.count {
+            return nil
+        }
+        return display.lines [row + display.yDisp]
+    }
+
+    /// The scrollback row at the top of what a view draws (`getDisplayedLine(row: 0)`'s, counted from the
+    /// start of the scroll buffer).
+    public var displayedTopRow: Int { displayBuffer.yDisp }
+
     /// Returns the contents of a line as a BufferLine counting from the begging of the scroll buffer.
     ///
     /// The line is counted  from start of scroll back, not what the terminal has visible right now.

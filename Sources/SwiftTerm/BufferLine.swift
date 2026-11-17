@@ -72,6 +72,21 @@ public final class BufferLine: CustomDebugStringConvertible {
         }
     }
 
+    /// Feeds `hasher` everything in the first `cols` cells that decides how this line draws: each cell's
+    /// rune or grapheme, width, attribute and hyperlink, and the line's double-size mode. Two lines that
+    /// hash alike draw the same pixels (given the same colors, font and selection), so a host can move the
+    /// pixels of one it drew before instead of drawing it again. Allocation-free.
+    public func hashDrawing(into hasher: inout Hasher, cols: Int) {
+        hasher.combine(renderMode)
+        for index in 0..<Swift.min(cols, dataSize) {
+            let cell = data[index]
+            hasher.combine(cell.code)
+            hasher.combine(cell.width)
+            hasher.combine(cell.attribute)
+            hasher.combine(cell.payload.code)
+        }
+    }
+
     public func getData() -> [CharData] {
         Array(data[0..<dataSize])
     }

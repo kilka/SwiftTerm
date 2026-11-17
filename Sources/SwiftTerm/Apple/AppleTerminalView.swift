@@ -1205,8 +1205,15 @@ extension TerminalView {
         // positions, producing garbled output. contentOffset.y is always correct because
         // the scroll view is kept in sync with yDisp (contentOffset.y == yDisp * cellHeight).
         let cellHeight = cellDimension.height
-        let firstRow = Int(contentOffset.y / cellHeight)
-        let lastRow = firstRow + Int(ceil(bounds.height / cellHeight))
+        var firstRow = Int(contentOffset.y / cellHeight)
+        var lastRow = firstRow + Int(ceil(bounds.height / cellHeight))
+        if drawsOnlyDirtyRows, cellHeight > 0, terminal.kittyGraphicsState.placementsByKey.isEmpty,
+           !(max(0, firstRow)...max(0, min(lastRow, displayBuffer.lines.count - 1))).contains(where: {
+               $0 < displayBuffer.lines.count && !(displayBuffer.lines [$0].images?.isEmpty ?? true) }) {
+            // Rows are laid out top down from the bounds origin, one cell high each.
+            firstRow = max(firstRow, Int((dirtyRect.minY / cellHeight).rounded(.down)) - 1)
+            lastRow = min(lastRow, Int((dirtyRect.maxY / cellHeight).rounded(.up)))
+        }
         #else
         // On Mac, we are drawing the terminal buffer
         let cellHeight = cellDimension.height
@@ -1224,7 +1231,7 @@ extension TerminalView {
         }
         var placeholderImageCache: [UInt32: TTImage] = [:]
 
-        for row in firstRow...lastRow {
+        for row in stride(from: firstRow, through: lastRow, by: 1) {
             if row < 0 {
                 continue
             }

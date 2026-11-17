@@ -207,6 +207,12 @@ open class TerminalView: UIScrollView, UITextInputTraits, UIKeyInput, UIScrollVi
     }
 #endif
     var cellDimension: CellDimension
+    /// When true, a draw lays out and draws only the rows its dirty rectangle touches, plus one row on
+    /// each side for glyphs that overhang their cell; every visible row otherwise. Pixels outside the
+    /// dirty rectangle are clipped away either way, so only the cost changes: a host that composes the
+    /// screen from rows it already has (a scroll that moves pixels it drew before) draws the new rows
+    /// alone. Rows with images, and any screen with kitty placements, are always drawn whole.
+    public var drawsOnlyDirtyRows = false
     var caretView: CaretView?
     var terminal: Terminal!
     private var progressBarView: TerminalProgressBarView?
