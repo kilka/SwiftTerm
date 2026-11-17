@@ -411,12 +411,11 @@ public final class Buffer {
     
     public func resize (newCols : Int, newRows : Int)
     {
-        if marginRight > newCols - 1 {
-            marginRight = newCols - 1
-        }
-        if marginLeft >= marginRight {
-            marginLeft = marginRight
-        }
+        // Margins span the new width, as upstream SwiftTerm's resize does: a margin left at the old width
+        // made a full-width scroll (CSI T in the alternate screen, which uses the margins) skip the columns
+        // a wider terminal gained.
+        marginLeft = 0
+        marginRight = newCols - 1
         let newMaxLength = getCorrectBufferLength(newRows)
         if newMaxLength > lines.maxLength {
             lines.maxLength = newMaxLength
